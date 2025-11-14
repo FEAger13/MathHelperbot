@@ -1,13 +1,20 @@
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+import os
+import re
 from PIL import Image
 import pytesseract
 from sympy import sympify, simplify, symbols
-import re
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
 x = symbols('x')
 
-# Форматирование степеней
+# --- Форматирование степеней ---
 def format_exponent(expr_str):
     superscript_map = {"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵",
                        "6":"⁶","7":"⁷","8":"⁸","9":"⁹"}
@@ -23,57 +30,54 @@ def format_exponent(expr_str):
             i += 1
     return result
 
-# Форматирование дробей
+# --- Форматирование дробей ---
 def format_fraction(frac_str):
     if "/" in frac_str:
         num, den = frac_str.split("/")
         return f"{num}⁄{den}"
     return frac_str
 
-# Разделение текста на примеры
+# --- Разделение текста на примеры ---
 def split_examples(text):
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     examples = []
     for line in lines:
-        # Разделяем по ; или , если несколько примеров на одной строке
         parts = re.split(r'[;,]', line)
         for p in parts:
             if p.strip():
                 examples.append(p.strip())
     return examples
 
-# Решение и форматирование
+# --- Решение и форматирование примера ---
 def solve_example(expr_text):
     try:
         expr = sympify(expr_text)
         result = simplify(expr)
-        
-        # Определяем простоту примера
+        # Простые примеры с пошаговым объяснением
         if expr.is_number or len(expr.free_symbols) <= 1:
-            # Пошаговое объяснение для простых примеров
             explanation = "Привели к общему знаменателю, посчитали результат"
         else:
             explanation = None
-        
         expr_fmt = format_fraction(format_exponent(str(expr_text)))
         result_fmt = format_fraction(format_exponent(str(result)))
-        
         return expr_fmt, result_fmt, explanation
     except:
         return expr_text, None, None
 
-# Команда /start
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Привет! Отправь мне фото с примерами, и я решу их с пошаговым объяснением.")
+# --- Команда /start ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Привет! Отправь мне фото с примерами, и я решу их с пошаговым объяснением."
+    )
 
-# Обработка фото
-def handle_photo(update: Update, context: CallbackContext):
-    photo_file = update.message.photo[-1].get_file()
-    photo_file.download("example.jpg")
-    
+# --- Обработка фото ---
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    photo_file = await update.message.photo[-1].get_file()
+    await photo_file.download_to_drive("example.jpg")
+
     text = pytesseract.image_to_string(Image.open("example.jpg"))
     examples = split_examples(text)
-    
+
     response = ""
     for i, ex in enumerate(examples, start=1):
         expr_fmt, result_fmt, explanation = solve_example(ex)
@@ -83,19 +87,16 @@ def handle_photo(update: Update, context: CallbackContext):
         if explanation:
             response += f"Пошаговое объяснение: {explanation}\n"
         response += f"Ответ: {result_fmt if result_fmt else 'Не удалось решить'}\n\n"
-    
-    update.message.reply_text(response)
 
-def main():
-    import os
-    TOKEN = os.environ.get("TOKEN")  # берем из переменной окружения Render
-    updater = Updater(TOKEN)
-    dp = updater.dispatcher
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(MessageHandler(Filters.photo, handle_photo))
-    
-    updater.start_polling()
-    updater.idle()
+    await update.message.reply_text(response)
 
+# --- Основной запуск бота ---
 if __name__ == "__main__":
-    main()
+    TOKEN = os.environ.get("TOKEN")  # Токен берём из переменных окружения Render
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+
+    print("Бот запущен...")
+    app.run_polling()
