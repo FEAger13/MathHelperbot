@@ -89,19 +89,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(response)
 
-# --- Основной запуск бота через Webhook ---
+# --- Основной запуск бота ---
 if __name__ == "__main__":
     TOKEN = os.environ.get("TOKEN")
     PORT = int(os.environ.get("PORT", 10000))
-    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # URL Render
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
 
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    print("Бот запущен через Webhook...")
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
-    )
+    print("Бот запущен...")
+
+    if WEBHOOK_URL:
+        print(f"Запуск через Webhook на {WEBHOOK_URL}")
+        app.run_webhook(
+            listen="0.0.0.0",
+            port=PORT,
+            webhook_url=WEBHOOK_URL
+        )
+    else:
+        print("WEBHOOK_URL не задан, запускаем через polling")
+        app.run_polling()
