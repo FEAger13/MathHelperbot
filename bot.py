@@ -53,7 +53,6 @@ def solve_example(expr_text):
     try:
         expr = sympify(expr_text)
         result = simplify(expr)
-        # Простые примеры с пошаговым объяснением
         if expr.is_number or len(expr.free_symbols) <= 1:
             explanation = "Привели к общему знаменателю, посчитали результат"
         else:
@@ -90,13 +89,19 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(response)
 
-# --- Основной запуск бота ---
+# --- Основной запуск бота через Webhook ---
 if __name__ == "__main__":
-    TOKEN = os.environ.get("TOKEN")  # Токен берём из переменных окружения Render
-    app = ApplicationBuilder().token(TOKEN).build()
+    TOKEN = os.environ.get("TOKEN")
+    PORT = int(os.environ.get("PORT", 10000))
+    WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # URL Render
 
+    app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-    print("Бот запущен...")
-    app.run_polling()
+    print("Бот запущен через Webhook...")
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=WEBHOOK_URL
+    )
